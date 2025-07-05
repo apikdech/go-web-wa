@@ -1,47 +1,45 @@
+# Git files
+.git
+.gitignore
+.gitattributes
+
 # Documentation
 README.md
 IMPLEMENTATION_PLAN.md
 *.md
 
-# Git
-.git
-.gitignore
+# Docker files
+Dockerfile*
+docker-compose*.yml
 
-# IDE
-.vscode
-.idea
-*.swp
-*.swo
-
-# OS
-.DS_Store
-Thumbs.db
-
-# Logs
-*.log
-
-# Local development
-.env
-.env.local
-.env.development.local
-.env.test.local
-.env.production.local
-
-# Dependencies
-node_modules/
+# Development files
+.env*
+.vscode/
+.idea/
 
 # Build artifacts
-dist/
-build/
 *.exe
 *.dll
 *.so
 *.dylib
 
-# Test coverage
-*.out
-coverage.txt
+# Test files
+*_test.go
+test/
+tests/
 
-# Local session data during development
-sessions/
-*.db 
+# Temporary files
+*.tmp
+*.log
+*.swp
+*.swo
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Node modules (if any)
+node_modules/
+
+# Sessions directory will be mounted as volume
+sessions/ 

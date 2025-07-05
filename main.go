@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"net/http"
 	"os"
 	"strings"
 	"time"
@@ -55,6 +56,14 @@ func main() {
 	// Wait a moment for connection to stabilize
 	time.Sleep(2 * time.Second)
 
+	// Test network connectivity first
+	log.Println("Testing network connectivity...")
+	if err := testNetworkConnectivity(); err != nil {
+		log.Printf("Network connectivity test failed: %v", err)
+		sendErrorToDiscord(discordClient, "Network Error", fmt.Sprintf("Network connectivity test failed: %v", err))
+		// Continue anyway - it might still work
+	}
+
 	// Fetch profile picture
 	log.Printf("Fetching profile picture for: %s", cfg.TargetPhoneNumber)
 	imageData, err := waClient.GetProfilePicture(cfg.TargetPhoneNumber)
@@ -63,6 +72,8 @@ func main() {
 		sendErrorToDiscord(discordClient, "Profile Picture Error", fmt.Sprintf("Failed to fetch profile picture for %s: %v", cfg.TargetPhoneNumber, err))
 		return
 	}
+
+	fmt.Println("Successfully fetched profile picture")
 
 	// Generate filename
 	filename := fmt.Sprintf("profile_%s_%s.jpg", cfg.TargetPhoneNumber, time.Now().Format("20060102_150405"))
@@ -164,4 +175,25 @@ func init() {
 		pairDevice()
 		os.Exit(0)
 	}
+}
+
+// testNetworkConnectivity tests basic network connectivity
+func testNetworkConnectivity() error {
+	client := &http.Client{
+		Timeout: 10 * time.Second,
+	}
+
+	// Test with a reliable external service
+	resp, err := client.Get("https://www.google.com")
+	if err != nil {
+		return fmt.Errorf("failed to reach external service: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("unexpected status code: %d", resp.StatusCode)
+	}
+
+	log.Println("Network connectivity test passed")
+	return nil
 }

@@ -267,29 +267,69 @@ func (c *Client) parsePhoneNumber(phoneNumber string) (types.JID, error) {
 	return jid, nil
 }
 
-// downloadImage downloads an image from URL
+// downloadImage downloads an image from URL with retry logic and improved HTTP configuration
 func (c *Client) downloadImage(url string) ([]byte, error) {
+	// Configure HTTP client for Docker environments
 	client := &http.Client{
-		Timeout: 30 * time.Second,
+		Timeout: 60 * time.Second, // Increased timeout for Docker environments
+		Transport: &http.Transport{
+			MaxIdleConns:        100,
+			MaxConnsPerHost:     10,
+			IdleConnTimeout:     90 * time.Second,
+			TLSHandshakeTimeout: 10 * time.Second,
+			DisableKeepAlives:   false, // Enable keep-alive for better connection reuse
+		},
 	}
 
-	resp, err := client.Get(url)
-	if err != nil {
-		return nil, fmt.Errorf("failed to download image: %w", err)
-	}
-	defer resp.Body.Close()
+	// Retry logic for network issues common in Docker
+	maxRetries := 3
+	backoff := 2 * time.Second
 
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("failed to download image: HTTP %d", resp.StatusCode)
+	for attempt := 1; attempt <= maxRetries; attempt++ {
+		log.Printf("Downloading image (attempt %d/%d): %s", attempt, maxRetries, url)
+
+		resp, err := client.Get(url)
+		if err != nil {
+			log.Printf("Download attempt %d failed: %v", attempt, err)
+			if attempt < maxRetries {
+				log.Printf("Retrying in %v...", backoff)
+				time.Sleep(backoff)
+				backoff *= 2 // Exponential backoff
+				continue
+			}
+			return nil, fmt.Errorf("failed to download image after %d attempts: %w", maxRetries, err)
+		}
+		defer resp.Body.Close()
+
+		if resp.StatusCode != http.StatusOK {
+			log.Printf("Download attempt %d failed: HTTP %d", attempt, resp.StatusCode)
+			if attempt < maxRetries && (resp.StatusCode >= 500 || resp.StatusCode == 429) {
+				log.Printf("Retrying in %v...", backoff)
+				time.Sleep(backoff)
+				backoff *= 2
+				continue
+			}
+			return nil, fmt.Errorf("failed to download image: HTTP %d", resp.StatusCode)
+		}
+
+		// Read the image data
+		imageData, err := io.ReadAll(resp.Body)
+		if err != nil {
+			log.Printf("Download attempt %d failed to read body: %v", attempt, err)
+			if attempt < maxRetries {
+				log.Printf("Retrying in %v...", backoff)
+				time.Sleep(backoff)
+				backoff *= 2
+				continue
+			}
+			return nil, fmt.Errorf("failed to read image data: %w", err)
+		}
+
+		log.Printf("Successfully downloaded image (%d bytes)", len(imageData))
+		return imageData, nil
 	}
 
-	// Read the image data
-	imageData, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read image data: %w", err)
-	}
-
-	return imageData, nil
+	return nil, fmt.Errorf("failed to download image after %d attempts", maxRetries)
 }
 
 // GetUserInfo gets user information for a phone number

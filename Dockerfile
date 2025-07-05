@@ -1,23 +1,26 @@
 # Multi-stage build for smaller image
 FROM golang:1.24.4-alpine AS builder
 
-# Install necessary packages
-RUN apk add --no-cache ca-certificates git tzdata
+# Install necessary packages including build tools and SQLite3
+RUN apk add --no-cache ca-certificates gcc git musl-dev sqlite-dev tzdata
 
 # Set the working directory
 WORKDIR /app
 
-# Copy go mod files
+# Copy go mod files first for better caching
 COPY go.mod go.sum ./
 
-# Download dependencies
-RUN go mod download
+# Download dependencies with cache mount
+RUN --mount=type=cache,target=/go/pkg/mod \
+    go mod download
 
 # Copy source code
 COPY . .
 
-# Build the application
-RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o main .
+# Build the application with CGO enabled and cache mounts
+RUN --mount=type=cache,target=/go/pkg/mod \
+    --mount=type=cache,target=/root/.cache/go-build \
+    CGO_ENABLED=1 GOOS=linux go build -ldflags '-linkmode external -extldflags "-static"' -o main .
 
 # Runtime stage
 FROM alpine:3.22.0

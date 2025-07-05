@@ -1,0 +1,10 @@
+services:
+  whatsapp-client:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: apikdech/wa-profile-worker
+    env_file:
+      - .env
+    volumes:
+      - ./sessions:/sessions
